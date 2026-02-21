@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh run list:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(docker build:*)"
+    ]
+  }
+}
