@@ -35,7 +35,7 @@ namespace DocQL
                 app.UseExceptionHandler("/Error");
             }
 
-            app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+            app.UseStatusCodePagesWithReExecute("/not-found");
             app.UseAntiforgery();
 
             app.MapStaticAssets();
