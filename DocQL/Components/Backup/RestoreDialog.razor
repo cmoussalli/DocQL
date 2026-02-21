@@ -1,0 +1,127 @@
+@using DocQL.Models
+@using DocQL.Services
+@inject BackupRestoreService BackupService
+
+<Modal IsVisible="IsVisible" Title="Restore Database" OnClose="Close" Size="Modal.ModalSize.Large">
+    <ChildContent>
+        <div class="form-group form-group-horizontal">
+            <label class="form-label">Database:</label>
+            <input class="form-input" @bind="Options.DatabaseName" placeholder="Target database name" />
+        </div>
+
+        <div class="form-group form-group-horizontal">
+            <label class="form-label">Source file:</label>
+            <input class="form-input" @bind="Options.FilePath" placeholder="C:\Backups\database.bak" />
+        </div>
+
+        <div style="margin-top: 8px;">
+            <button class="btn btn-sm" @onclick="ReadBackupInfo">Read Backup Info</button>
+        </div>
+
+        @if (Options.BackupFiles.Count > 0)
+        {
+            <div style="margin-top: 12px;">
+                <div style="font-size: var(--font-size-sm); font-weight: 600; margin-bottom: 4px;">Backup Contents:</div>
+                <table class="data-grid" style="width: 100%;">
+                    <thead>
+                        <tr>
+                            <th>Logical Name</th>
+                            <th>Type</th>
+                            <th>Physical Name</th>
+                            <th>Size</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var file in Options.BackupFiles)
+                        {
+                            <tr>
+                                <td>@file.LogicalName</td>
+                                <td>@(file.Type == "D" ? "Data" : "Log")</td>
+                                <td>@file.PhysicalName</td>
+                                <td>@((file.Size / 1024.0 / 1024.0).ToString("F1")) MB</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        <div style="margin-top: 12px;">
+            <label class="form-checkbox">
+                <input type="checkbox" @bind="Options.WithReplace" />
+                Overwrite existing database (WITH REPLACE)
+            </label>
+            <label class="form-checkbox">
+                <input type="checkbox" @bind="Options.WithRecovery" />
+                Restore with recovery (database available after restore)
+            </label>
+        </div>
+
+        <div class="form-group form-group-horizontal" style="margin-top: 8px;">
+            <label class="form-label">Relocate data file:</label>
+            <input class="form-input" @bind="Options.RelocateDataFile" placeholder="Optional new data file path" />
+        </div>
+        <div class="form-group form-group-horizontal">
+            <label class="form-label">Relocate log file:</label>
+            <input class="form-input" @bind="Options.RelocateLogFile" placeholder="Optional new log file path" />
+        </div>
+
+        @if (ResultMessage != null)
+        {
+            <div style="margin-top: 12px; padding: 8px; border-radius: 4px; font-size: var(--font-size-sm);
+                        background: @(HasError ? "rgba(190,17,0,0.1)" : "rgba(45,139,45,0.1)");
+                        color: @(HasError ? "var(--text-error)" : "var(--text-success)");">
+                @ResultMessage
+            </div>
+        }
+    </ChildContent>
+    <Footer>
+        <button class="btn btn-primary" @onclick="RunRestore" disabled="@IsRunning">
+            @(IsRunning ? "Restoring..." : "OK")
+        </button>
+        <button class="btn" @onclick="Close">Cancel</button>
+    </Footer>
+</Modal>
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private DocQL.Models.RestoreOptions Options = new() { WithRecovery = true };
+    private bool IsRunning;
+    private string? ResultMessage;
+    private bool HasError;
+
+    private async Task ReadBackupInfo()
+    {
+        if (string.IsNullOrEmpty(Options.FilePath)) return;
+
+        try
+        {
+            Options.BackupFiles = await BackupService.GetBackupFileListAsync(Options.FilePath);
+        }
+        catch (Exception ex)
+        {
+            ResultMessage = ex.Message;
+            HasError = true;
+        }
+    }
+
+    private async Task RunRestore()
+    {
+        IsRunning = true;
+        ResultMessage = null;
+        StateHasChanged();
+
+        var result = await BackupService.RestoreDatabaseAsync(Options);
+        IsRunning = false;
+        HasError = result.HasErrors;
+        ResultMessage = result.Messages.LastOrDefault()?.Text;
+    }
+
+    private async Task Close()
+    {
+        ResultMessage = null;
+        await OnClose.InvokeAsync();
+    }
+}
